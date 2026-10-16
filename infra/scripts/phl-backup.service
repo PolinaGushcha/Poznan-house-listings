@@ -1,0 +1,7 @@
+[Unit]
+Description=Poznan house listings — production database backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/phl/backup.sh production nightly

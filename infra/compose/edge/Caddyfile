@@ -1,0 +1,33 @@
+# Values come from SSM Parameter Store /phl/edge/ (written to /opt/phl/edge/.env by deploy.sh)
+{
+	email {$ACME_EMAIL}
+}
+
+{$PRODUCTION_DOMAIN} {
+	encode zstd gzip
+	handle /api/* {
+		reverse_proxy production-api:4000
+	}
+	handle {
+		reverse_proxy production-web:3000
+	}
+}
+
+www.{$PRODUCTION_DOMAIN} {
+	redir https://{$PRODUCTION_DOMAIN}{uri} permanent
+}
+
+# Staging is password-protected and hidden from search engines
+{$STAGING_DOMAIN} {
+	encode zstd gzip
+	header X-Robots-Tag "noindex, nofollow"
+	basic_auth {
+		{$STAGING_BASIC_AUTH_USER} {$STAGING_BASIC_AUTH_HASH}
+	}
+	handle /api/* {
+		reverse_proxy staging-api:4000
+	}
+	handle {
+		reverse_proxy staging-web:3000
+	}
+}
