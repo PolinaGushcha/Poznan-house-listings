@@ -1,0 +1,18 @@
+# Build context is the repository root (see apps/*/Dockerfile)
+**/node_modules
+**/.next
+**/out
+**/dist
+**/coverage
+**/cdk.out
+**/*.tsbuildinfo
+.git
+.github
+.husky
+.history
+infra
+docs
+**/.env
+**/.env.*
+!**/.env.example
+**/.DS_Store
