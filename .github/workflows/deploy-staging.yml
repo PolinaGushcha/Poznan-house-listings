@@ -1,0 +1,102 @@
+name: Deploy to staging
+
+# Build once on main, push the images, deploy the same tag to staging.
+# Production later receives exactly these images through "Release to production".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build and push images
+    needs: ci
+    # Off until the AWS server runs (no-spend period). Set the repository variable DEPLOY_ENABLED=true to turn on.
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/phl-web:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+      - name: Build and push api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/phl-api:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Upload deploy bundle (compose files and scripts)
+        env:
+          BUCKET: ${{ vars.PHL_OPS_BUCKET }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          tar -czf bundle.tar.gz infra/compose infra/scripts
+          aws s3 cp --only-show-errors bundle.tar.gz "s3://$BUCKET/deploy/$TAG/bundle.tar.gz"
+
+  deploy:
+    name: Deploy to staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://${{ vars.STAGING_DOMAIN }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/ssm-run
+        with:
+          instance-id: ${{ vars.EC2_INSTANCE_ID }}
+          comment: deploy staging ${{ needs.build.outputs.tag }}
+          script: |
+            set -euo pipefail
+            source /opt/phl/host.env
+            TAG=${{ needs.build.outputs.tag }}
+            mkdir -p "/opt/phl/releases/$TAG"
+            aws s3 cp --only-show-errors "s3://$PHL_OPS_BUCKET/deploy/$TAG/bundle.tar.gz" - | tar -xz -C "/opt/phl/releases/$TAG"
+            bash "/opt/phl/releases/$TAG/infra/scripts/deploy.sh" staging "$TAG"
+      - name: Summary
+        run: |
+          {
+            echo "### Staging deployed"
+            echo "Image tag: \`${{ needs.build.outputs.tag }}\`"
+            echo "To release this build: run **Release to production** with this tag."
+          } >> "$GITHUB_STEP_SUMMARY"
