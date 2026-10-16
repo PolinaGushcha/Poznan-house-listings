@@ -1,0 +1,74 @@
+name: Rollback
+
+# Manual and gated. Redeploys an earlier image tag (images are immutable in ECR,
+# release bundles are kept in S3 for 90 days). Does NOT roll back the database:
+# if a migration must be undone, restore a backup by hand (infra/README.md → Restore).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to roll back
+        required: true
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: Earlier image tag (commit SHA) to go back to
+        required: true
+        type: string
+      confirm:
+        description: 'Type exactly: rollback <environment> to <image_tag>'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate request
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - id: check
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          TAG: ${{ inputs.image_tag }}
+          CONFIRM: ${{ inputs.confirm }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$REF" == "refs/heads/main" ]] || { echo "::error::Run this workflow from the main branch"; exit 1; }
+          [[ "$TAG" =~ ^[0-9a-f]{7,40}$ ]] || { echo "::error::image_tag must be a commit SHA"; exit 1; }
+          [[ "$CONFIRM" == "rollback $ENVIRONMENT to $TAG" ]] || { echo "::error::Confirmation text does not match"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  rollback:
+    name: Roll back ${{ inputs.environment }}
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/ssm-run
+        with:
+          instance-id: ${{ vars.EC2_INSTANCE_ID }}
+          comment: rollback ${{ inputs.environment }} ${{ needs.validate.outputs.tag }}
+          script: |
+            set -euo pipefail
+            source /opt/phl/host.env
+            TAG=${{ needs.validate.outputs.tag }}
+            mkdir -p "/opt/phl/releases/$TAG"
+            aws s3 cp --only-show-errors "s3://$PHL_OPS_BUCKET/deploy/$TAG/bundle.tar.gz" - | tar -xz -C "/opt/phl/releases/$TAG"
+            bash "/opt/phl/releases/$TAG/infra/scripts/deploy.sh" ${{ inputs.environment }} "$TAG"

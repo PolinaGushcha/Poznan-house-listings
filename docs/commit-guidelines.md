@@ -12,16 +12,16 @@
 
 ## Types
 
-| Type       | When to use                                      |
-|------------|--------------------------------------------------|
-| `feat`     | New feature or user-visible functionality        |
-| `fix`      | Bug fix                                          |
+| Type       | When to use                                             |
+| ---------- | ------------------------------------------------------- |
+| `feat`     | New feature or user-visible functionality               |
+| `fix`      | Bug fix                                                 |
 | `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `style`    | Formatting, missing semicolons, etc. (no logic change) |
-| `test`     | Adding or updating tests                         |
-| `docs`     | Documentation only                               |
-| `chore`    | Build process, dependencies, config files        |
-| `perf`     | Performance improvement                          |
+| `style`    | Formatting, missing semicolons, etc. (no logic change)  |
+| `test`     | Adding or updating tests                                |
+| `docs`     | Documentation only                                      |
+| `chore`    | Build process, dependencies, config files               |
+| `perf`     | Performance improvement                                 |
 
 ## Examples
 

@@ -1,0 +1,15 @@
+node_modules
+**/.next
+**/out
+**/dist
+**/coverage
+**/cdk.out
+package-lock.json
+*.tsbuildinfo
+apps/web/next-env.d.ts
+apps/web/public
+**/*.ico
+**/*.png
+**/*.svg
+.env*
+!.env.example

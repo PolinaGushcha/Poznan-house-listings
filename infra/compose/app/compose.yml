@@ -1,0 +1,62 @@
+# One application stack per environment: docker compose -p phl-<env> ...
+# Variables: APP_ENV (production|staging), IMAGE_TAG, ECR_REGISTRY, memory limits — set by deploy.sh.
+services:
+  web:
+    image: ${ECR_REGISTRY}/phl-web:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+        aliases: ['${APP_ENV}-web']
+    mem_limit: ${WEB_MEM_LIMIT:-512m}
+    logging: &logging
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+  api:
+    image: ${ECR_REGISTRY}/phl-api:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV}
+      APP_VERSION: ${IMAGE_TAG}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+        aliases: ['${APP_ENV}-api']
+    mem_limit: ${API_MEM_LIMIT:-384m}
+    logging: *logging
+
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      retries: 10
+    networks:
+      - default # never on the edge network, never published
+    mem_limit: ${DB_MEM_LIMIT:-768m}
+    logging: *logging
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  db-data:

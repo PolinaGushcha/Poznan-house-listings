@@ -1,0 +1,39 @@
+name: Staging on/off
+
+# Staging shares the production server. Stop it when not testing to free memory.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do with the staging stack
+        required: true
+        type: choice
+        options: [start, stop, status]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    name: Staging ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: ./.github/actions/ssm-run
+        with:
+          instance-id: ${{ vars.EC2_INSTANCE_ID }}
+          comment: staging ${{ inputs.action }}
+          timeout-seconds: '300'
+          script: /opt/phl/staging.sh ${{ inputs.action }}

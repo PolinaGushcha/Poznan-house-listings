@@ -1,0 +1,95 @@
+name: Release to production
+
+# Manual and gated. Promotes an image tag that is already running on staging to production.
+# Safety: typed confirmation + GitHub environment "production" (add yourself as required reviewer)
+# + pre-deploy database backup + health checks with automatic revert (see infra/scripts/deploy.sh).
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to release (the full commit SHA shown in the staging deploy summary)
+        required: true
+        type: string
+      confirm:
+        description: 'Type exactly: deploy <image_tag> to production'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate request
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - id: check
+        env:
+          TAG: ${{ inputs.image_tag }}
+          CONFIRM: ${{ inputs.confirm }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$REF" == "refs/heads/main" ]] || { echo "::error::Run this workflow from the main branch"; exit 1; }
+          [[ "$TAG" =~ ^[0-9a-f]{7,40}$ ]] || { echo "::error::image_tag must be a commit SHA"; exit 1; }
+          [[ "$CONFIRM" == "deploy $TAG to production" ]] || { echo "::error::Confirmation text does not match"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Deploy to production
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ vars.PRODUCTION_DOMAIN }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.validate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Check that both images exist in ECR
+        run: |
+          set -euo pipefail
+          for repo in phl-web phl-api; do
+            aws ecr describe-images --repository-name "$repo" --image-ids "imageTag=$TAG" >/dev/null \
+              || { echo "::error::$repo:$TAG not found — deploy it to staging first"; exit 1; }
+          done
+      - uses: ./.github/actions/ssm-run
+        with:
+          instance-id: ${{ vars.EC2_INSTANCE_ID }}
+          comment: release production ${{ needs.validate.outputs.tag }}
+          script: |
+            set -euo pipefail
+            source /opt/phl/host.env
+            TAG=${{ needs.validate.outputs.tag }}
+            mkdir -p "/opt/phl/releases/$TAG"
+            aws s3 cp --only-show-errors "s3://$PHL_OPS_BUCKET/deploy/$TAG/bundle.tar.gz" - | tar -xz -C "/opt/phl/releases/$TAG"
+            bash "/opt/phl/releases/$TAG/infra/scripts/deploy.sh" production "$TAG"
+      - name: Smoke test through the public domain
+        env:
+          DOMAIN: ${{ vars.PRODUCTION_DOMAIN }}
+        run: |
+          set -euo pipefail
+          for path in /healthz /api/health/ready; do
+            curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "https://$DOMAIN$path" >/dev/null
+            echo "OK $path"
+          done
+      - name: Summary
+        run: |
+          {
+            echo "### Production released"
+            echo "Image tag: \`$TAG\`"
+            echo "Rollback: run **Rollback** with the previous tag (stored on the server in /opt/phl/production/previous_tag)."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,32 @@
+{
+  "name": "poznan-house-listings",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Houses for sale in Poznań — web app (Next.js) and API (Express) in one npm workspace",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "predev": "npm run build --workspace @phl/shared",
+    "dev": "npm run dev --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "pretypecheck": "npm run build --workspace @phl/shared",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "pretest": "npm run build --workspace @phl/shared",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10"
+  }
+}
