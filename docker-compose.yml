@@ -2,12 +2,13 @@
 services:
   db:
     image: postgis/postgis:17-3.5
+    platform: linux/amd64 # no arm64 image exists; Docker Desktop on Apple Silicon emulates it (same image as the server)
     environment:
       POSTGRES_USER: phl
       POSTGRES_PASSWORD: phl-local-password # local development only
       POSTGRES_DB: phl_dev
     ports:
-      - '5432:5432'
+      - '5433:5432' # 5433 on the Mac, so it never clashes with another local PostgreSQL on 5432
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
