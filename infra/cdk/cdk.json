@@ -1,0 +1,13 @@
+{
+  "app": "npx tsx bin/phl.ts",
+  "context": {
+    "region": "eu-central-1",
+    "localZone": "eu-central-1-waw-1a",
+    "networkBorderGroup": "eu-central-1-waw-1",
+    "instanceType": "t3.medium",
+    "githubRepository": "PolinaGushcha/Poznan-house-listings",
+    "monthlyBudgetUsd": 60,
+    "alertEmail": "polina.hushcha@gmail.com",
+    "existingGithubOidcProviderArn": ""
+  }
+}
