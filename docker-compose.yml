@@ -1,0 +1,25 @@
+# Local development only. Production and staging use infra/compose/.
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: phl
+      POSTGRES_PASSWORD: phl-local-password # local development only
+      POSTGRES_DB: phl_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U phl -d phl_dev']
+      interval: 5s
+      retries: 10
+
+  mail:
+    image: axllent/mailpit:latest # catches outgoing email locally: http://localhost:8025
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+
+volumes:
+  db-data:
