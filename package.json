@@ -12,7 +12,7 @@
   },
   "scripts": {
     "predev": "npm run build --workspace @phl/shared",
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,green \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
     "lint": "npm run lint --workspaces --if-present",
     "pretypecheck": "npm run build --workspace @phl/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "concurrently": "^10.0.6",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.10"
