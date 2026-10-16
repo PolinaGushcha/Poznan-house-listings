@@ -1,13 +1,13 @@
-import { defineConfig } from "eslint/config";
-import js from "@eslint/js";
-import globals from "globals";
-import tseslint from "typescript-eslint";
-import react from "eslint-plugin-react";
-import reactHooks from "eslint-plugin-react-hooks";
-import prettierRecommended from "eslint-plugin-prettier/recommended";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-import ignores from "./eslint.ignores.mjs";
+import js from '@eslint/js';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
+import prettierRecommended from 'eslint-plugin-prettier/recommended';
+import react from 'eslint-plugin-react';
+import reactHooks from 'eslint-plugin-react-hooks';
+import { defineConfig } from 'eslint/config';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+import ignores from './eslint.ignores.mjs';
 
 const eslintConfig = defineConfig([
   ignores,
@@ -25,21 +25,21 @@ const eslintConfig = defineConfig([
       // env: browser, es2021
       globals: {
         ...globals.browser,
-        ...globals.es2021,
+        ...globals.es2021
       },
       ecmaVersion: 2022, // ecmaVersion: 13
-      sourceType: "module",
+      sourceType: 'module',
       parserOptions: {
         ecmaFeatures: {
-          jsx: true,
-        },
-      },
+          jsx: true
+        }
+      }
     },
     settings: {
       react: {
-        version: "detect",
-      },
-    },
+        version: 'detect'
+      }
+    }
   },
 
   // plugin:prettier/recommended — must stay after other configs so it can
@@ -48,10 +48,10 @@ const eslintConfig = defineConfig([
 
   {
     rules: {
-      "prettier/prettier": "error",
-      "react/react-in-jsx-scope": "off",
-    },
-  },
+      'prettier/prettier': 'error',
+      'react/react-in-jsx-scope': 'off'
+    }
+  }
 ]);
 
 export default eslintConfig;
